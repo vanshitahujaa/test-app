@@ -1,0 +1,39 @@
+# Tells kube-prometheus-stack to scrape our two services.
+# Requires the `monitoring.coreos.com/v1` CRD installed (it ships with kube-prometheus-stack).
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api
+  namespace: shortener
+  labels:
+    release: kube-prometheus-stack   # match Helm release label
+spec:
+  selector:
+    matchLabels:
+      app: api
+  namespaceSelector:
+    matchNames: [shortener]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: worker
+  namespace: shortener
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: worker
+  namespaceSelector:
+    matchNames: [shortener]
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s

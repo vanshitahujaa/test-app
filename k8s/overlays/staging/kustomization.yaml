@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: shortener
+
+# Staging overlay: pinned to image tags that come out of CI.
+# This is the overlay AutoFixOps will be configured to patch.
+images:
+  - name: ghcr.io/vanshitahujaa/shortener-api
+    newTag: v1.0.0
+  - name: ghcr.io/vanshitahujaa/shortener-worker
+    newTag: v1.0.0

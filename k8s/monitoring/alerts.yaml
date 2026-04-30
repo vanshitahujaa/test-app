@@ -1,0 +1,101 @@
+# Alert rule names match the keys in AutoFixOps' RuleBasedDiagnosisEngine
+# (engine/baseline.py). When these fire, the rule engine handles them with
+# 100% confidence; anything else falls through to the AI fallback.
+#
+# Required by kube-prometheus-stack; the `release` label must match the
+# Helm release name so Prometheus picks the rules up.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: shortener-alerts
+  namespace: shortener
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: shortener.rules
+      interval: 30s
+      rules:
+
+        # ─── DETERMINISTIC: rule engine handles directly ─────────────
+
+        - alert: TargetAppMemoryLeak
+          expr: |
+            (
+              container_memory_working_set_bytes{namespace="shortener", container!="", container!="POD"}
+              /
+              on(pod, container) kube_pod_container_resource_limits{namespace="shortener", resource="memory"}
+            ) > 0.85
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Memory > 85% of limit on {{ $labels.pod }}/{{ $labels.container }}"
+            description: |
+              Working-set memory has been above 85% of the container limit for 1 minute.
+              Likely a leak; AutoFixOps should propose INCREASE_MEMORY_LIMIT.
+
+        - alert: HighCPUUsage
+          expr: |
+            sum by (namespace, pod, container) (
+              rate(container_cpu_usage_seconds_total{namespace="shortener", container!="", container!="POD"}[2m])
+            )
+            /
+            sum by (namespace, pod, container) (
+              kube_pod_container_resource_limits{namespace="shortener", resource="cpu"}
+            ) > 0.80
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CPU > 80% of limit on {{ $labels.pod }}/{{ $labels.container }}"
+            description: |
+              Sustained CPU saturation. AutoFixOps should propose RESTART_POD or scaling.
+
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="shortener"}[5m]) >= 3
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} restarted ≥3 times in 5 min"
+            description: |
+              The pod is stuck in CrashLoopBackOff. AutoFixOps should propose
+              ROLLBACK_DEPLOYMENT.
+
+        # ─── AI FALLBACK: rule engine returns UNKNOWN, AI is invoked ──
+
+        - alert: HighErrorRate
+          expr: |
+            sum by (namespace, route) (rate(http_requests_total{namespace="shortener", status=~"5.."}[2m]))
+            /
+            sum by (namespace, route) (rate(http_requests_total{namespace="shortener"}[2m])) > 0.05
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "5xx rate > 5% on {{ $labels.route }}"
+
+        - alert: SlowResponseTime
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le, route) (rate(http_request_duration_seconds_bucket{namespace="shortener"}[5m]))
+            ) > 1.0
+          for: 3m
+          labels:
+            severity: warning
+          annotations:
+            summary: "p95 latency > 1s on {{ $labels.route }}"
+
+        # ─── INFRA-LEVEL: useful for context, not auto-remediated ────
+
+        - alert: PodNotReady
+          expr: |
+            sum by (namespace, pod) (kube_pod_status_ready{namespace="shortener", condition="false"}) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.pod }} not ready for 5 min"

@@ -1,0 +1,52 @@
+# Drop-in values for `helm install kube-prometheus-stack -f prometheus-values.yaml`.
+# Tuned for a laptop / minikube / kind — not for production.
+
+prometheus:
+  prometheusSpec:
+    retention: 6h
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+    # Pick up our ServiceMonitors and PrometheusRules across all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests: { cpu: 25m, memory: 64Mi }
+      limits:   { cpu: 100m, memory: 128Mi }
+    alertmanagerConfigSelector:
+      matchLabels:
+        release: kube-prometheus-stack
+
+grafana:
+  adminPassword: "shortener-admin"
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { cpu: 200m, memory: 256Mi }
+  defaultDashboardsEnabled: true
+  service:
+    type: NodePort
+    nodePort: 30080
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+
+# Tiny exporters — we don't need everything kube-prometheus ships
+nodeExporter:
+  enabled: true
+kubeStateMetrics:
+  enabled: true
+prometheusOperator:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 200m, memory: 128Mi }
+
+# We bring our own alerts in alerts.yaml; the bundled ones are noisy on a laptop.
+defaultRules:
+  create: false

@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shortener-dashboard
+  namespace: shortener
+  labels:
+    grafana_dashboard: "1"     # picked up by the Grafana sidecar
+data:
+  shortener.json: |
+    {
+      "title": "Shortener — App + Health",
+      "uid": "shortener-app",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "10s",
+      "time": { "from": "now-30m", "to": "now" },
+      "timezone": "browser",
+      "tags": ["shortener", "autofixops"],
+      "panels": [
+        {
+          "id": 1, "type": "timeseries",
+          "title": "Request rate by route",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [{
+            "expr": "sum by (route) (rate(http_requests_total{namespace=\"shortener\"}[2m]))",
+            "legendFormat": "{{route}}", "refId": "A"
+          }]
+        },
+        {
+          "id": 2, "type": "timeseries",
+          "title": "p95 latency by route",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [{
+            "expr": "histogram_quantile(0.95, sum by (le, route) (rate(http_request_duration_seconds_bucket{namespace=\"shortener\"}[2m])))",
+            "legendFormat": "{{route}}", "refId": "A"
+          }],
+          "fieldConfig": { "defaults": { "unit": "s" } }
+        },
+        {
+          "id": 3, "type": "timeseries",
+          "title": "Memory % of limit",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [{
+            "expr": "100 * container_memory_working_set_bytes{namespace=\"shortener\", container!=\"\", container!=\"POD\"} / on(pod, container) kube_pod_container_resource_limits{namespace=\"shortener\", resource=\"memory\"}",
+            "legendFormat": "{{pod}}/{{container}}", "refId": "A"
+          }],
+          "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "min": 0 } }
+        },
+        {
+          "id": 4, "type": "timeseries",
+          "title": "CPU rate (cores)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [{
+            "expr": "sum by (pod, container) (rate(container_cpu_usage_seconds_total{namespace=\"shortener\", container!=\"\", container!=\"POD\"}[2m]))",
+            "legendFormat": "{{pod}}/{{container}}", "refId": "A"
+          }]
+        },
+        {
+          "id": 5, "type": "stat",
+          "title": "Links created (5m)",
+          "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+          "targets": [{ "expr": "increase(shortener_links_total[5m])", "refId": "A" }]
+        },
+        {
+          "id": 6, "type": "stat",
+          "title": "Click cache hit ratio",
+          "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+          "targets": [{
+            "expr": "sum(rate(shortener_clicks_total{hit=\"cache_hit\"}[5m])) / sum(rate(shortener_clicks_total[5m]))",
+            "refId": "A"
+          }],
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } }
+        },
+        {
+          "id": 7, "type": "stat",
+          "title": "Worker batch processed (5m)",
+          "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+          "targets": [{ "expr": "increase(worker_events_processed_total[5m])", "refId": "A" }]
+        }
+      ]
+    }
