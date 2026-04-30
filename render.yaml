@@ -40,7 +40,7 @@ services:
     plan: free            # 25MB
     region: oregon
     ipAllowList: []       # empty = only internal Render services can reach it
-    maxmemoryPolicy: allkeys_lru
+    maxmemoryPolicy: allkeys-lru
 
   # ─── FastAPI web service ─────────────────────────────────────────
   - type: web
