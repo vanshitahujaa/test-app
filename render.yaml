@@ -1,0 +1,104 @@
+# Render Blueprint for the shortener test target.
+#
+# What this gives you:
+#   1. shortener-api    — public HTTPS web service (FastAPI, Docker)
+#   2. shortener-db     — managed Postgres (free 90 days, then paid)
+#   3. shortener-redis  — managed Key Value (Redis-compatible, free 25MB)
+#
+# Optional, paid (~$7/mo on Render Starter):
+#   4. shortener-worker — uncomment the block at the bottom to enable
+#
+# How to deploy:
+#   1. Commit and push this repo to GitHub.
+#   2. https://dashboard.render.com  →  New  →  Blueprint  →  pick this repo.
+#   3. Render reads this file, provisions everything, and gives you a public URL.
+#
+# How to deploy without the dashboard:
+#   render blueprint launch --file render.yaml
+#
+# Heads-up on the free Web Service tier:
+#   - Spins down after 15 minutes of inactivity.
+#   - First request after a spin-down takes ~30-60s.
+#   - That's fine for AutoFixOps testing — the chaos endpoints will wake it up.
+#
+# SECURITY NOTE:
+#   This deployment exposes /_chaos/{leak,cpu,crash,recover} on a public URL
+#   because CHAOS_ENABLED is set to true. That's intentional for an
+#   AutoFixOps test target, but means anyone with the URL can crash the pod.
+#   Don't expose secrets or real data on this instance.
+
+databases:
+  - name: shortener-db
+    plan: free            # 90 days free, then $7/mo
+    databaseName: shortener
+    user: shortener
+
+services:
+  # ─── Redis-compatible Key Value store ────────────────────────────
+  - type: keyvalue
+    name: shortener-redis
+    plan: free            # 25MB
+    region: oregon
+    ipAllowList: []       # empty = only internal Render services can reach it
+    maxmemoryPolicy: allkeys_lru
+
+  # ─── FastAPI web service ─────────────────────────────────────────
+  - type: web
+    name: shortener-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: services/api/Dockerfile
+    dockerContext: services/api
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: shortener-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: shortener-redis
+          property: connectionString
+      - key: CHAOS_ENABLED
+        value: "true"           # see SECURITY NOTE above
+      - key: LOG_LEVEL
+        value: INFO
+      - key: CACHE_TTL_SECONDS
+        value: "60"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+      # Render injects PORT automatically; the Dockerfile uses $PORT.
+
+  # ─── Background worker (PAID — uncomment to enable) ──────────────
+  # On Render's free tier this would have to be a paid Background Worker
+  # (~$7/mo on the Starter plan). Without it the API still works fully —
+  # click events get pushed onto the Redis stream and capped at 10k entries.
+  # Per-link click counts in /stats/{code} just won't increment.
+  #
+  # - type: worker
+  #   name: shortener-worker
+  #   runtime: docker
+  #   plan: starter
+  #   region: oregon
+  #   dockerfilePath: services/worker/Dockerfile
+  #   dockerContext: services/worker
+  #   autoDeploy: true
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: shortener-db
+  #         property: connectionString
+  #     - key: REDIS_URL
+  #       fromService:
+  #         type: keyvalue
+  #         name: shortener-redis
+  #         property: connectionString
+  #     - key: BATCH_SIZE
+  #       value: "100"
+  #     - key: LEAK_RATE_KB
+  #       value: "0"

@@ -44,6 +44,38 @@ make recover                     # frees it
 make down
 ```
 
+## Deploy to a real server (Render, 3 minutes)
+
+The fastest way to get a public HTTPS URL for AutoFixOps to point at.
+
+1. Push this repo to your GitHub.
+2. Go to [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**.
+3. Connect the repo. Render reads [`render.yaml`](render.yaml) and provisions:
+   - `shortener-api` — public web service (free tier)
+   - `shortener-db` — managed Postgres (free 90 days)
+   - `shortener-redis` — managed Key Value store (free 25 MB)
+4. Click **Apply**. About 3 minutes later you'll have a URL like
+   `https://shortener-api-xxxx.onrender.com`.
+
+Smoke test it:
+```bash
+URL=https://shortener-api-xxxx.onrender.com
+curl -X POST $URL/shorten -H 'Content-Type: application/json' -d '{"url":"https://example.com"}'
+curl -X POST $URL/_chaos/leak?mb=80
+```
+
+**Free-tier caveats**
+- The web service sleeps after 15 min idle (~30-60s cold start).
+- The background worker is **not** included on the free tier — see the
+  commented block in `render.yaml`. Without it, click counts in
+  `/stats/{code}` won't increment, but every other route works.
+- After 90 days the Postgres becomes paid; you can swap to Supabase or
+  Neon at that point by changing `DATABASE_URL` in the Render dashboard.
+
+**Security note** — this Render deployment exposes `/_chaos/*` on the
+public internet. Anyone with the URL can crash your pod. That's the
+point for testing AutoFixOps. Don't put real data on this instance.
+
 ## Quick start (Kubernetes, 5 minutes)
 
 Requires `kind`, `kubectl`, `helm`.

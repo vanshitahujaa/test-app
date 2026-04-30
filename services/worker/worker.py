@@ -29,6 +29,9 @@ log = logging.getLogger()
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 DATABASE_URL = os.getenv("DATABASE_URL",
                          "postgresql://shortener:shortener@postgres:5432/shortener")
+# Render/Heroku style URL — normalize for SQLAlchemy 2.x
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 STREAM = os.getenv("STREAM", "clicks")
 GROUP = os.getenv("GROUP", "click-agg")
 CONSUMER = os.getenv("HOSTNAME", "worker-1")

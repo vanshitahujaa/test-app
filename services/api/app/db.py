@@ -12,6 +12,10 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://shortener:shortener@postgres:5432/shortener",
 )
+# Render (and Heroku, and others) hand out URLs starting with postgres://;
+# SQLAlchemy 2.x only accepts postgresql://. Normalize once here.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # pool_pre_ping handles transient drops; small pool_size keeps the
 # failure mode realistic — under load you can exhaust connections,
