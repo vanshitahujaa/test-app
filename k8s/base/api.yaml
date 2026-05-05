@@ -58,7 +58,7 @@ spec:
             name: api-config
         - secretRef:
             name: postgres-creds
-        image: ghcr.io/vanshitahujaa/shortener-api:latest
+        image: ghcr.io/vanshitahujaa/shortener-api:rollback
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 3
