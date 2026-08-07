@@ -44,6 +44,8 @@ spec:
     type: RollingUpdate
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-05-04T21:45:44.952553Z'
       labels:
         app: api
     spec:
